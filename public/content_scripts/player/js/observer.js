@@ -60,36 +60,45 @@ function setUp() {
 
     cleanUpPreviousUI();
 
-    let player = videojs("player_html5_api", {"poster": ""});
-    player.poster("");
-
-    if (player.src() !== "") {
-        player.ready(() => initBVRV(player));
-    } else {
-        console.log("no source");
-    }
+    // Usage:  ensure element is visible
+    poll(function() {
+        let player = videojs("player_html5_api", {"poster": ""});
+        return player.src() !== "";
+    }, 30000, 500).then(function() {
+        // Polling done, now do something else!
+        let player = videojs("player_html5_api", {"poster": ""});
+        player.poster("");
+        player.ready(() => {
+            initBVRV(player);
+        });
+    }).catch(function(e) {
+        // Polling timed out, handle the error!
+        console.error("no source", e);
+    });
 }
 
-function observerCallback(mutationsList, observer) {
-    for(let mutation of mutationsList) {
-        if (mutation.type == 'attributes') {
-            if (mutation.attributeName === "src") {
-                setUp();
+// The polling function
+function poll(fn, timeout, interval) {
+    var endTime = Number(new Date()) + (timeout || 2000);
+    interval = interval || 100;
 
-                observer.disconnect();
-                createObserver(document.getElementById("player_html5_api"), observerCallback);
-            }
+    var checkCondition = function(resolve, reject) {
+        // If the condition is met, we're done! 
+        var result = fn();
+        if(result) {
+            resolve(result);
         }
-    }
-}
+        // If the condition isn't met but the timeout hasn't elapsed, go again
+        else if (Number(new Date()) < endTime) {
+            setTimeout(checkCondition, interval, resolve, reject);
+        }
+        // Didn't match and too much time, reject!
+        else {
+            reject(new Error('timed out for ' + fn + ': ' + arguments));
+        }
+    };
 
-function createObserver(element, callback) {
-    let observer = new MutationObserver(callback);
-    observer.observe(
-        element,
-        { attributes: true, childList: true, subtree: true }
-    );
+    return new Promise(checkCondition);
 }
 
 setUp();
-createObserver(document.getElementById("player_html5_api"), observerCallback);
