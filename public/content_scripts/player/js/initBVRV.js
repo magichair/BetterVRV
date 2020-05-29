@@ -35,16 +35,54 @@ function getParseTimestamp(player) {
 }
 
 function initAblyListener(player) {
-    const ably = new Ably.Realtime('QHt4Mw.J7CueQ:siqXoN1qkuKzgFel');
+    const myClientId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    const ably = new Ably.Realtime({key: 'QHt4Mw.Q1PDmA:9DLgRr2SuvM701g2', clientId: myClientId, echoMessages: false});
     const channel = ably.channels.get(document.referrer.split("/")[4]);
+    const bufferTimeSecs = 3.0;
+    const sampleRate = 10; // Only post every 10x time updates
+    let currentCount = 1;
+    let currentMembers = {};
     player.on(
         "timeupdate",
         (e) => {
-            let currentTime = player.currentTime();
-            channel.publish('currentTime', currentTime.toString());
+            if (currentCount++ % sampleRate == 0) {
+                let currentTime = player.currentTime();
+                channel.publish('currentTime', currentTime.toString());
+                currentCount = 1;
+            }
         }
     );
-    channel.subscribe('seek', (message) => {
-        player.currentTime(parseFloat(message.data));
-    })
+    channel.presence.subscribe('enter', (member) => {
+        console.log(`New Member ${member.clientId}`);
+        currentMembers[member.clientId] = 0.0;
+    });
+    channel.presence.subscribe('present', (member) => {
+        console.log(`Member already present ${member.clientId}`);
+        currentMembers[member.clientId] = 0.0;
+    });
+    channel.presence.subscribe('leave', (member) => {
+        console.log(`Member left ${member.clientId}`);
+        delete currentMembers[member.clientId];
+    });
+    channel.presence.enter();
+    channel.subscribe('currentTime', (message) => {
+        clientId = message.clientId;
+        currentMembers[clientId] = parseFloat(message.data);
+        currentTime = player.currentTime();
+        minTime = 99999;
+        for (var member in currentMembers) {
+            if (member != myClientId && currentMembers[member] < minTime) {
+                minTime = currentMembers[member];
+            }
+        }
+        if (currentTime - minTime > bufferTimeSecs) {
+            console.log(`Pausing to catch up from currentTime: ${currentTime.toString()} to minTime: ${minTime.toString()}`)
+            player.pause();
+        } else {
+            console.log('Caught up! Un-pausing!')
+            if (player.paused()) {
+                player.play();
+            }
+        }
+    });
 }
