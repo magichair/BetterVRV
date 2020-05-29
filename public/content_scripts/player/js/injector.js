@@ -1,4 +1,5 @@
 insertJS("lib/parse.min.js");
+insertJS("lib/ably.min-1.js");
 
 let statusIcons = {
     "muted": chrome.runtime.getURL("images/status_icons/muted.svg"),

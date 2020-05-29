@@ -3,6 +3,7 @@ function initBVRV(player) {
     insertUI(player);
     getParseTimestamp(player);
     document.onkeydown = (e) => handleKeycuts(player, e);
+    initAblyListener(player);
 }
 
 function setDefaults(player) {
@@ -20,7 +21,7 @@ function getParseTimestamp(player) {
 
     const Timestamps = Parse.Object.extend('Timestamps');
     const query = new Parse.Query(Timestamps);
-    query.equalTo("episodeId", episodeId);
+    query.equalTo("episodeId", document.referrer.split("/")[4]);
     query.first().then(
         (result) => {
             if (result) {
@@ -31,4 +32,19 @@ function getParseTimestamp(player) {
             console.error(error);
         }
     );
+}
+
+function initAblyListener(player) {
+    const ably = new Ably.Realtime('QHt4Mw.J7CueQ:siqXoN1qkuKzgFel');
+    const channel = ably.channels.get(document.referrer.split("/")[4]);
+    player.on(
+        "timeupdate",
+        (e) => {
+            let currentTime = player.currentTime();
+            channel.publish('currentTime', currentTime.toString());
+        }
+    );
+    channel.subscribe('seek', (message) => {
+        player.currentTime(parseFloat(message.data));
+    })
 }
