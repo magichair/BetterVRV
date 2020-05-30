@@ -40,15 +40,17 @@ function initAblyListener(player) {
     const channel = ably.channels.get(document.referrer.split("/")[4]);
     const bufferTimeSecs = 3.0;
     const sampleRate = 10; // Only post every 10x time updates
-    let currentCount = 1;
+    let currentCount = sampleRate;
     let currentMembers = {};
     player.on(
         "timeupdate",
         (e) => {
-            if (currentCount++ % sampleRate == 0) {
-                let currentTime = player.currentTime();
-                channel.publish('currentTime', currentTime.toString());
-                currentCount = 1;
+            if (currentMembers > 1) {
+                if (currentCount++ % sampleRate == 0) {
+                    let currentTime = player.currentTime();
+                    channel.publish('currentTime', currentTime.toString());
+                    currentCount = 1;
+                }
             }
         }
     );
@@ -77,10 +79,12 @@ function initAblyListener(player) {
         }
         if (currentTime - minTime > bufferTimeSecs) {
             console.log(`Pausing to catch up from currentTime: ${currentTime.toString()} to minTime: ${minTime.toString()}`)
+            currentCount = sampleRate;
             player.pause();
         } else {
             console.log('Caught up! Un-pausing!')
             if (player.paused()) {
+                currentCount = sampleRate;
                 player.play();
             }
         }
